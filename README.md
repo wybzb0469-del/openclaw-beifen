@@ -1,6 +1,6 @@
-# OpenClaw ctl
+# OpenClaw CTL
 
-OpenClaw / MoltBot 的管理脚本，把常用操作都包进了一个交互式菜单里，省得每次手打命令。
+OpenClaw CTL / MoltBot 的管理脚本，把常用操作都包进了一个交互式菜单里，省得每次手打命令。
 
 支持 macOS（Intel / Apple Silicon）、主流 Linux 发行版和 Windows 11。
 
