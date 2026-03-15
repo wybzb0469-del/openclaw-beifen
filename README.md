@@ -74,7 +74,7 @@ chmod +x openclaw.sh
 在 PowerShell 中运行：
 
 ```powershell
-irm https://raw.githubusercontent.com/byJoey/openclawctl/main/openclaw.ps1 | iex
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/byJoey/openclawctl/main/openclaw.ps1 | iex"
 ```
 
 运行一次后，新开 PowerShell 窗口输入 `oc` 即可快速启动。
