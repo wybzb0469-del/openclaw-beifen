@@ -9,12 +9,12 @@ const BACKUP_MANAGER = "/root/.openclaw/workspace/scripts/backup_manager.js";
 function buildButtons() {
   return [
     [
-      { text: "📋 列表", callback_data: "bf list" },
-      { text: "💾 本地备份", callback_data: "bf local" }
+      { text: "📋 列表", callback_data: "/bf list" },
+      { text: "💾 本地备份", callback_data: "/bf local" }
     ],
     [
-      { text: "☁️ GitHub", callback_data: "bf github" },
-      { text: "🧹 清理", callback_data: "bf clean" }
+      { text: "☁️ GitHub", callback_data: "/bf github" },
+      { text: "🧹 清理", callback_data: "/bf clean" }
     ]
   ];
 }
