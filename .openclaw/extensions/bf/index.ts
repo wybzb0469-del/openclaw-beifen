@@ -24,10 +24,17 @@ async function runBackup(mode: string) {
     return { ok: false, text: `❌ backup_manager.js 不存在\n${BACKUP_MANAGER}` };
   }
 
+  const timeoutMap: Record<string, number> = {
+    list: 30000,
+    clean: 60000,
+    local: 180000,
+    github: 300000,
+  };
+
   try {
     const { stdout, stderr } = await execFileAsync("node", [BACKUP_MANAGER, mode], {
-      timeout: mode === "local" ? 120000 : 30000,
-      maxBuffer: 1024 * 1024,
+      timeout: timeoutMap[mode] ?? 60000,
+      maxBuffer: 1024 * 1024 * 4,
     });
     const out = [stdout, stderr].filter(Boolean).join("\n").trim();
     return { ok: true, text: out || "已完成" };
