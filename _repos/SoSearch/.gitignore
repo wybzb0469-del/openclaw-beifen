@@ -1,0 +1,8 @@
+/target
+*.log
+*_out.html
+.cargo/
+
+# Gemini CLI temp files
+.gemini/tmp/
+.gemini/cache/

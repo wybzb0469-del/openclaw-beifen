@@ -1,0 +1,7 @@
+# Cross-compilation configuration for `cross` tool
+# Used by CI for Linux ARM64 builds
+# boring-sys2 (BoringSSL) requires cmake, clang, libclang-dev, and perl
+# Using a custom Dockerfile to ensure all deps are properly installed
+
+[target.aarch64-unknown-linux-gnu]
+dockerfile = "cross/aarch64-linux.Dockerfile"

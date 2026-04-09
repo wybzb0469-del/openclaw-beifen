@@ -1,0 +1,5 @@
+API server listening on 0.0.0.0:10080
+
+thread 'main' (2874943) panicked at src/main.rs:35:85:
+called `Result::unwrap()` on an `Err` value: Os { code: 98, kind: AddrInUse, message: "Address already in use" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

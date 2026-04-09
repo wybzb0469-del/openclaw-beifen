@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  sosearch:
+    build:
+      context: .
+    container_name: sosearch-api
+    ports:
+      - "${PORT:-11380}:${PORT:-11380}"
+    environment:
+      - PORT=${PORT:-11380}
+    restart: unless-stopped
