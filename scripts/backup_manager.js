@@ -6,13 +6,52 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// 备份根目录：放在 workspace/backups 下
 const BACKUP_BASE = '/root/.openclaw/workspace/backups';
 const WORKSPACE_DIR = '/root/.openclaw/workspace';
 const GITHUB_ENV_FILE = '/root/.openclaw/workspace/scripts/github_backup.env';
 const GITHUB_REPO_DIR = '/root/.openclaw/workspace/_repos/openclaw-beifen';
 const KEEP_DAYS = 7;
 const KEEP_LATEST = 3;
+
+const SKIP_NAMES = new Set([
+  'node_modules',
+  '.git',
+  'backups',
+  'dist',
+  'build',
+  '.cache',
+  '.next',
+  '.turbo',
+  '.pnpm-store',
+]);
+
+const SKIP_RELATIVE_PREFIXES = [
+  '_repos/openclaw-beifen',
+  'openclaw-zero-token/.git',
+  'openclaw-zero-token/dist',
+  'openclaw-zero-token/node_modules',
+  'openclaw-zero-token/.turbo',
+  'openclaw-zero-token/.next',
+  'tools/sosearch/sosearch.zip',
+];
+
+const SKIP_SUFFIXES = [
+  '.log',
+  '.tmp',
+  '.temp',
+  '.swp',
+  '.tar.gz',
+  '.zip',
+  '.pyc',
+  '.pyo',
+];
+
+const SKIP_EXACT_FILES = new Set([
+  'scripts/github_backup.env',
+  'scripts/nodeseek_cookies.env',
+  'scripts/nodeseek_cookies.json',
+  '.openclaw/workspace-state.json',
+]);
 
 function ensureDir(p) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
@@ -101,16 +140,25 @@ function formatSize(bytes) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+function shouldSkipRel(relPath) {
+  const normalized = relPath.replace(/\\/g, '/');
+  if (!normalized) return false;
+  if (SKIP_EXACT_FILES.has(normalized)) return true;
+  if (SKIP_RELATIVE_PREFIXES.some(prefix => normalized === prefix || normalized.startsWith(prefix + '/'))) return true;
+  if (SKIP_SUFFIXES.some(suffix => normalized.endsWith(suffix))) return true;
+  return false;
+}
+
 function collectWorkspaceFiles() {
   const result = [];
-  const skipNames = new Set(['node_modules', '.git', 'backups']);
 
   function walk(dir) {
     const items = fs.readdirSync(dir, { withFileTypes: true });
     for (const item of items) {
-      if (skipNames.has(item.name)) continue;
+      if (SKIP_NAMES.has(item.name)) continue;
       const fullPath = path.join(dir, item.name);
-      const relPath = path.relative(WORKSPACE_DIR, fullPath);
+      const relPath = path.relative(WORKSPACE_DIR, fullPath).replace(/\\/g, '/');
+      if (shouldSkipRel(relPath)) continue;
       if (item.isDirectory()) {
         walk(fullPath);
       } else if (item.isFile()) {
@@ -223,8 +271,10 @@ async function githubBackup() {
     console.log('⚠️ pull 失败，继续尝试覆盖同步');
   }
 
-  console.log('📦 开始同步 workspace 文件到备份仓库...');
+  console.log('📦 开始同步筛选后的 workspace 文件到备份仓库...');
   const files = collectWorkspaceFiles();
+  const keepSet = new Set(files);
+
   for (const relPath of files) {
     const src = path.join(WORKSPACE_DIR, relPath);
     const dst = path.join(GITHUB_REPO_DIR, relPath);
@@ -237,12 +287,15 @@ async function githubBackup() {
     for (const item of items) {
       if (item.name === '.git') continue;
       const repoPath = path.join(repoDir, item.name);
-      const relPath = path.join(baseRel, item.name);
-      const srcPath = path.join(WORKSPACE_DIR, relPath);
-      if (!fs.existsSync(srcPath)) {
+      const relPath = path.join(baseRel, item.name).replace(/\\/g, '/');
+      const isKeptFile = keepSet.has(relPath);
+      const hasKeptDescendant = [...keepSet].some(f => f.startsWith(relPath + '/'));
+
+      if (!isKeptFile && !hasKeptDescendant) {
         fs.rmSync(repoPath, { recursive: true, force: true });
         continue;
       }
+
       if (item.isDirectory()) cleanExtra(repoPath, relPath);
     }
   }
@@ -269,6 +322,7 @@ async function githubBackup() {
   console.log('✅ GitHub 备份完成');
   console.log(`📍 仓库: ${repoUrl}`);
   console.log(`🌿 分支: ${branch}`);
+  console.log(`🧹 已启用筛选规则，排除日志/备份/敏感配置/大型产物`);
 }
 
 async function cleanBackups() {
