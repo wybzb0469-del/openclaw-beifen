@@ -237,8 +237,8 @@ async function githubBackup() {
   const token = env.GITHUB_TOKEN;
 
   if (!repoUrl || !token) {
-    console.log('❌ 缺少 GitHub 配置');
-    console.log(`请检查: ${GITHUB_ENV_FILE}`);
+    console.log('❌ GitHub 备份失败');
+    console.log('缺少仓库地址或 token');
     return;
   }
 
@@ -248,30 +248,19 @@ async function githubBackup() {
   const branch = 'main';
 
   if (!fs.existsSync(GITHUB_REPO_DIR) || !fs.existsSync(path.join(GITHUB_REPO_DIR, '.git'))) {
-    console.log('📥 首次拉取 GitHub 仓库...');
-    run(`git clone ${shellEscape(remoteUrl)} ${shellEscape(GITHUB_REPO_DIR)}`, { stdio: 'inherit' });
+    run(`git clone ${shellEscape(remoteUrl)} ${shellEscape(GITHUB_REPO_DIR)}`, { stdio: 'ignore' });
   }
 
-  console.log('🔄 同步远端最新内容...');
-  try {
-    run(`git -C ${shellEscape(GITHUB_REPO_DIR)} fetch origin`, { stdio: 'inherit' });
-  } catch {
-    console.log('⚠️ fetch 失败，继续本地检查');
-  }
+  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} remote set-url origin ${shellEscape(remoteUrl)}`);
+  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} config user.name ${shellEscape('OpenClaw Backup')}`);
+  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} config user.email ${shellEscape('openclaw-backup@local')}`);
 
-  try {
-    run(`git -C ${shellEscape(GITHUB_REPO_DIR)} checkout ${branch}`, { stdio: 'inherit' });
-  } catch {
-    run(`git -C ${shellEscape(GITHUB_REPO_DIR)} checkout -b ${branch}`, { stdio: 'inherit' });
+  try { run(`git -C ${shellEscape(GITHUB_REPO_DIR)} fetch origin`, { stdio: 'ignore' }); } catch {}
+  try { run(`git -C ${shellEscape(GITHUB_REPO_DIR)} checkout ${branch}`, { stdio: 'ignore' }); } catch {
+    run(`git -C ${shellEscape(GITHUB_REPO_DIR)} checkout -b ${branch}`, { stdio: 'ignore' });
   }
+  try { run(`git -C ${shellEscape(GITHUB_REPO_DIR)} pull origin ${branch} --rebase`, { stdio: 'ignore' }); } catch {}
 
-  try {
-    run(`git -C ${shellEscape(GITHUB_REPO_DIR)} pull origin ${branch} --rebase`, { stdio: 'inherit' });
-  } catch {
-    console.log('⚠️ pull 失败，继续尝试覆盖同步');
-  }
-
-  console.log('📦 开始同步筛选后的 workspace 文件到备份仓库...');
   const files = collectWorkspaceFiles();
   const keepSet = new Set(files);
 
@@ -289,7 +278,7 @@ async function githubBackup() {
       const repoPath = path.join(repoDir, item.name);
       const relPath = path.join(baseRel, item.name).replace(/\\/g, '/');
       const isKeptFile = keepSet.has(relPath);
-      const hasKeptDescendant = [...keepSet].some(f => f.startsWith(relPath + '/'));
+      const hasKeptDescendant = files.some(f => f.startsWith(relPath + '/'));
 
       if (!isKeptFile && !hasKeptDescendant) {
         fs.rmSync(repoPath, { recursive: true, force: true });
@@ -301,28 +290,29 @@ async function githubBackup() {
   }
   cleanExtra(GITHUB_REPO_DIR);
 
-  const gitUserName = 'OpenClaw Backup';
-  const gitUserEmail = 'openclaw-backup@local';
-  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} config user.name ${shellEscape(gitUserName)}`);
-  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} config user.email ${shellEscape(gitUserEmail)}`);
-  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} remote set-url origin ${shellEscape(remoteUrl)}`);
-  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} add -A`, { stdio: 'inherit', maxBuffer: 1024 * 1024 * 16 });
+  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} add -A`, { stdio: 'ignore', maxBuffer: 1024 * 1024 * 16 });
 
   const cleanTree = runQuiet(`git -C ${shellEscape(GITHUB_REPO_DIR)} diff --cached --quiet`) &&
                     runQuiet(`git -C ${shellEscape(GITHUB_REPO_DIR)} diff --quiet`);
   if (cleanTree) {
-    console.log('✅ GitHub 备份完成：没有新的变更需要推送');
+    console.log('✅ GitHub 备份完成');
+    console.log(`📍 仓库: ${repoUrl}`);
+    console.log(`🌿 分支: ${branch}`);
+    console.log('📝 结果: 没有新的变更');
     return;
   }
 
+  const before = run(`git -C ${shellEscape(GITHUB_REPO_DIR)} rev-parse --short HEAD`, { stdio: 'pipe' }).trim();
   const commitMsg = `backup: ${new Date().toISOString()}`;
-  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} commit -m ${shellEscape(commitMsg)}`, { stdio: 'inherit', maxBuffer: 1024 * 1024 * 16 });
-  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} push origin ${branch}`, { stdio: 'inherit', maxBuffer: 1024 * 1024 * 16 });
+  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} commit -m ${shellEscape(commitMsg)}`, { stdio: 'ignore', maxBuffer: 1024 * 1024 * 16 });
+  run(`git -C ${shellEscape(GITHUB_REPO_DIR)} push origin ${branch}`, { stdio: 'ignore', maxBuffer: 1024 * 1024 * 16 });
+  const after = run(`git -C ${shellEscape(GITHUB_REPO_DIR)} rev-parse --short HEAD`, { stdio: 'pipe' }).trim();
 
   console.log('✅ GitHub 备份完成');
   console.log(`📍 仓库: ${repoUrl}`);
   console.log(`🌿 分支: ${branch}`);
-  console.log(`🧹 已启用筛选规则，排除日志/备份/敏感配置/大型产物`);
+  console.log(`📝 新提交: ${before} → ${after}`);
+  console.log('🧹 已启用筛选规则');
 }
 
 async function cleanBackups() {
